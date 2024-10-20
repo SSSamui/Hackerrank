@@ -1,0 +1,153 @@
+#include <iostream>
+#include <cstdio>
+#include <vector>
+#include <cmath>
+#include <string>
+using namespace std;
+using ll = long long;
+
+const int MXN = 1e5 + 1, sz = 1 << 17;
+const ll NEGINF = -1e18;
+
+int n;
+
+vector<ll> lztree(2 * sz, 0), valtree(2 * sz, NEGINF);
+
+vector<vector<int>> adj(MXN, vector<int>(0));
+vector<int> sttind(MXN), endind(MXN), sbtreesz(MXN, 1), dep(MXN, 0), top(MXN), par(MXN);
+int cind = -1;
+
+void pushup(int p)
+{
+    int lc = 2 * p, rc = 2 * p + 1;
+    valtree[p] = fmax(valtree[lc], valtree[rc]);
+}
+
+void pushdown(int p)
+{
+    int lz = lztree[p];
+    lztree[p] = 0;
+
+    int lc = 2 * p, rc = 2 * p + 1;
+    lztree[lc] += lz, valtree[lc] += lz;
+    lztree[rc] += lz, valtree[rc] += lz;
+}
+
+void build(int p, int l, int r)
+{
+    valtree[p] = 0;
+    if (l == r) return;
+    int lc = 2 * p, rc = 2 * p + 1;
+    int mid = l + (r - l) / 2;
+    build(lc, l, mid), build(rc, mid + 1, r);
+}
+
+void upd(int p, int l, int r, int a, int b, ll tadd)
+{
+    if ((a > r) || (b < l)) return;
+    if ((a <= l) && (r <= b))
+    {
+        valtree[p] += tadd;
+        lztree[p] += tadd;
+        return;
+    }
+
+    int mid = l + (r - l) / 2;
+    int lc = 2 * p, rc = 2 * p + 1;
+
+    pushdown(p);
+    upd(lc, l, mid, a, b, tadd), upd(rc, mid + 1, r, a, b, tadd);
+    pushup(p);
+}
+
+ll rq(int p, int l, int r, int a, int b)
+{
+    if ((a > r) || (b < l)) return NEGINF;
+    if ((a <= l) && (r <= b)) return valtree[p];
+
+    int lc = 2 * p, rc = 2 * p + 1;
+    int mid = l + (r - l) / 2;
+    
+    pushdown(p);
+    return fmax(rq(lc, l, mid, a, b), rq(rc, mid + 1, r, a, b));
+}
+
+void sbtreedfs(int node = 1, int p = 0)
+{
+    for (int nxt : adj[node]) if (nxt != p)
+    {
+        dep[nxt] = dep[node] + 1, par[nxt] = node;
+        sbtreedfs(nxt, node);
+        sbtreesz[node] += sbtreesz[nxt];
+    }
+}
+
+void hldfs(int node = 1, int p = 0, int tp = 1)
+{
+    sttind[node] = ++cind, top[node] = tp;
+    int nxtnde = node, nxtsz = 0;
+    for (int nxt : adj[node]) if (nxt != p) if ((sbtreesz[nxt] > nxtsz) && (nxt != p)) nxtnde = nxt, nxtsz = sbtreesz[nxt];
+    if (nxtnde != node)
+    {
+        hldfs(nxtnde, node, tp);
+        for (int nxt : adj[node]) if ((nxt != p) && (nxt != nxtnde)) hldfs(nxt, node, nxt);
+    }
+
+    endind[node] = cind;
+}
+
+ll pq(int x, int y)
+{
+    ll ans = NEGINF;
+    while (top[x] != top[y])
+    {
+        if (dep[top[x]] < dep[top[y]]) swap(x, y);
+        ans = fmax(ans, rq(1, 0, n - 1, sttind[top[x]], sttind[x]));
+        x = par[top[x]];
+    }
+
+    if (dep[x] > dep[y]) swap(x, y);
+    ans = fmax(ans, rq(1, 0, n - 1, sttind[x], sttind[y]));
+    return ans;
+}
+
+int main()
+{
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    cin >> n;
+    build(1, 0, n - 1);
+
+    for (int i = 1; i < n; i++)
+    {
+        int a, b;
+        cin >> a >> b;
+        adj[a].push_back(b), adj[b].push_back(a);
+    }
+
+    sbtreedfs();
+    hldfs();
+
+    int _;
+    cin >> _;
+    while (_--)
+    {
+        string s;
+        cin >> s;
+        if (s[0] == 'a')
+        {
+            int a;
+            ll b;
+            cin >> a >> b;
+            upd(1, 0, n - 1, sttind[a], endind[a], b);
+        }
+
+        else
+        {
+            int a, b;
+            cin >> a >> b;
+            cout << pq(a, b) << "\n";
+        }
+    }
+}
